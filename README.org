@@ -1,0 +1,50 @@
+#+TITLE: @0k/vue-side-panel
+
+* Purpose
+
+=@0k/vue-side-panel= provides resizable side panels for Vue 3 applications,
+extracted from =Vigil-UI= so that several applications share one
+implementation. It owns panel chrome and interaction. Hosts keep their content,
+navigation, grid reservation, storage keys, native adapters, and visual themes.
+
+* Contract
+
+- One module-level =(min-width: 75rem)= media query selects docked or drawer
+  mode.
+- Desktop collapse and widths persist through host-supplied keys and adapters.
+- Mobile drawers are transient; a drawer group can expose only one panel.
+- Left and right panels support pointer and keyboard resizing with bounded
+  values and cleanup on cancellation or unmount.
+- =SidePanel= provides backdrop, Escape dismissal, collapse/reopen controls,
+  accessible labels, and header/body/footer slots. The footer stays pinned.
+- Closed drawers stay mounted for their exit transition, then become hidden and
+  non-interactive.
+- Styling is entirely through =--side-panel-*= custom properties and host
+  classes; the package does not impose an application palette or typography.
+
+* Acceptance ledger
+
+| Requirement | Automated proof |
+|-
+| One 75rem responsive owner | =test/viewport.test.ts= |
+| Persistent collapse/width and storage failures | =test/controller.test.ts= |
+| One open drawer per group on mobile | =test/controller.test.ts= |
+| Left/right pointer and keyboard resize cleanup | =test/resize.test.ts= |
+| Escape, backdrop, hidden drawer, reopen edge | =test/SidePanel.test.ts= |
+| Configurable labels and pinned slots | =test/SidePanel.test.ts= |
+
+* Usage
+
+#+begin_src typescript
+import {
+  SidePanel,
+  createPanelController,
+  createDrawerGroup,
+  usePanelViewport,
+} from '@0k/vue-side-panel';
+import '@0k/vue-side-panel/style.css';
+#+end_src
+
+The controller receives explicit labels, side, bounds, CSS variable name,
+storage keys, and optional commit callbacks. =SidePanel= receives that
+controller and host content through slots.
