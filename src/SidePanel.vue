@@ -348,6 +348,10 @@ onBeforeUnmount(() => {
 .side-panel__backdrop {
   position: fixed;
   inset: 0;
+  /* Explicit size: Chrome 91 leaves a fixed <button> 0px wide with
+     `inset: 0` alone, so the scrim would neither dim nor catch taps. */
+  width: 100%;
+  height: 100%;
   padding: 0;
   background: var(--side-panel-backdrop-background);
   border: 0;
