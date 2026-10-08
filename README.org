@@ -2,19 +2,78 @@
 
 * Purpose
 
-=@0k/vue-side-panel= provides resizable side panels for Vue 3 applications,
-extracted from =Vigil-UI= so that several applications share one
-implementation. It owns panel chrome and interaction. Hosts keep their content,
-navigation, grid reservation, storage keys, native adapters, and visual themes.
+=@0k/vue-side-panel= provides resizable side panels for Vue 3 applications:
+docked beside the content on wide screens, sliding drawers on narrow ones. It
+owns panel chrome and interaction (collapse, resize, drawer exclusivity,
+backdrop and Escape dismissal, accessible controls). The host application keeps
+its content, navigation, grid reservation, storage keys, persistence adapters,
+labels, and visual theme.
 
-* Contract
+* Install
 
-- One module-level =(min-width: 75rem)= media query selects docked or drawer
-  mode.
-- Desktop collapse and widths persist through host-supplied keys and adapters.
-- Mobile drawers are transient; a drawer group can expose only one panel.
-- Left and right panels support pointer and keyboard resizing with bounded
-  values and cleanup on cancellation or unmount.
+#+begin_src sh
+npm install @0k/vue-side-panel
+#+end_src
+
+=vue= =^3.5= is a peer dependency.
+
+* Usage
+
+#+begin_src typescript
+// main.ts
+import '@0k/vue-side-panel/style.css';
+#+end_src
+
+#+begin_src vue
+<script setup lang="ts">
+import { onBeforeUnmount } from 'vue';
+import { SidePanel, createPanelController } from '@0k/vue-side-panel';
+
+const sidebar = createPanelController({
+  id: 'sidebar',
+  side: 'left',
+  defaultWidth: 280,
+  minWidth: 200,
+  maxWidth: 480,
+  collapsedStorageKey: 'app.sidebar.collapsed',
+  widthStorageKey: 'app.sidebar.width',
+  cssWidthVariable: '--app-sidebar-width',
+});
+onBeforeUnmount(() => sidebar.dispose());
+</script>
+
+<template>
+  <SidePanel
+    :controller="sidebar"
+    panel-label="Navigation"
+    close-label="Close navigation"
+    reopen-label="Open navigation"
+    resize-label="Resize navigation"
+  >
+    <template #header>My app</template>
+    <nav>…</nav>
+    <template #footer>v1.0</template>
+  </SidePanel>
+</template>
+#+end_src
+
+The controller writes the current width to =cssWidthVariable= on the document
+root, so the host layout can reserve the docked width (for instance a
+~padding-left: var(--app-sidebar-width)~ applied while ~sidebar.docked.value~
+is true).
+
+* Behavior contract
+
+- One module-level =(min-width: 75rem)= media query (~DESKTOP_WIDE_QUERY~)
+  selects docked or drawer mode.
+- Desktop collapse and width persist through host-supplied keys and storage
+  (default: ~localStorage~). Storage and callback failures never prevent
+  in-memory use.
+- Mobile drawers are transient. Panels sharing a ~createDrawerGroup()~ group
+  have one open drawer at most.
+- Left and right panels support pointer and keyboard resizing (arrow keys:
+  8 px, with Shift: 32 px) with bounded values and cleanup on pointer-up,
+  cancellation, or unmount.
 - =SidePanel= provides backdrop, Escape dismissal, collapse/reopen controls,
   accessible labels, and header/body/footer slots. The footer stays pinned.
 - Closed drawers stay mounted for their exit transition, then become hidden and
@@ -22,29 +81,80 @@ navigation, grid reservation, storage keys, native adapters, and visual themes.
 - Styling is entirely through =--side-panel-*= custom properties and host
   classes; the package does not impose an application palette or typography.
 
-* Acceptance ledger
+* API
 
-| Requirement | Automated proof |
-|-
-| One 75rem responsive owner | =test/viewport.test.ts= |
-| Persistent collapse/width and storage failures | =test/controller.test.ts= |
-| One open drawer per group on mobile | =test/controller.test.ts= |
-| Left/right pointer and keyboard resize cleanup | =test/resize.test.ts= |
-| Escape, backdrop, hidden drawer, reopen edge | =test/SidePanel.test.ts= |
-| Configurable labels and pinned slots | =test/SidePanel.test.ts= |
+** ~createPanelController(options)~
 
-* Usage
+| Option                 | Type                       | Meaning                                       |
+|------------------------+----------------------------+-----------------------------------------------|
+| ~id~                   | ~string~                   | Panel identifier within its drawer group      |
+| ~side~                 | ~"left"~ or ~"right"~      | Edge the panel is attached to                 |
+| ~defaultWidth~         | ~number~                   | Width in px when nothing is stored            |
+| ~minWidth~, ~maxWidth~ | ~number~                   | Resize bounds in px                           |
+| ~collapsedStorageKey~  | ~string~                   | Storage key of the desktop collapsed state    |
+| ~widthStorageKey~      | ~string~                   | Storage key of the width                      |
+| ~cssWidthVariable~     | ~string~ starting with ~--~ | Root CSS variable receiving the width         |
+| ~storage~              | ~PanelStorage~, optional   | ~getItem~ / ~setItem~ / ~removeItem~ adapter  |
+| ~drawerGroup~          | ~DrawerGroup~, optional    | Shared group from ~createDrawerGroup()~       |
+| ~initialDrawerOpen~    | ~boolean~, optional        | Open the drawer initially (own group only)    |
+| ~onCollapsedCommit~    | callback, optional         | Called after a collapse change is committed   |
+| ~onWidthCommit~        | callback, optional         | Called after a resize is committed            |
 
-#+begin_src typescript
-import {
-  SidePanel,
-  createPanelController,
-  createDrawerGroup,
-  usePanelViewport,
-} from '@0k/vue-side-panel';
-import '@0k/vue-side-panel/style.css';
-#+end_src
+The returned controller exposes reactive ~collapsed~, ~width~, ~drawerOpen~,
+~visible~, ~docked~, ~reopenVisible~ and ~isDesktopWide~; the actions
+~openPanel()~, ~closePanel()~, ~togglePanel()~, ~setCollapsed()~ and
+~setWidth()~; and ~dispose()~, which releases its watcher and timer. For custom
+chrome built on ~usePanelResize~, it also exposes ~id~, ~side~, ~minWidth~,
+~maxWidth~, ~widthMode~ (~"layout"~, ~"drag"~ or ~"nudge"~), ~openDrawer()~,
+~closeDrawer()~, ~setWidthLive()~ (width without persisting), ~setDragging()~
+and ~markNudge()~.
 
-The controller receives explicit labels, side, bounds, CSS variable name,
-storage keys, and optional commit callbacks. =SidePanel= receives that
-controller and host content through slots.
+=SidePanel= reads its controller once when it is created: to switch
+controllers, re-key the component.
+
+** ~SidePanel~ props
+
+- Required labels (no built-in strings, for host translation): ~panelLabel~,
+  ~closeLabel~, ~reopenLabel~, ~resizeLabel~.
+- ~contained~ (default ~false~): when docked, the panel stays in normal flow
+  and fills its host container instead of being fixed to the viewport edge.
+- ~showBackdrop~, ~showClose~, ~showReopen~ (default ~true~).
+- Host class hooks: ~hostClass~, ~panelClass~, ~backdropClass~, ~closeClass~,
+  ~resizeClass~, ~reopenClass~.
+- Test ids: ~panelTestId~, ~closeTestId~, ~resizeTestId~, ~reopenTestId~.
+
+** ~SidePanel~ slots
+
+- default: panel body.
+- ~header~, ~footer~: rendered only when provided; the footer stays pinned.
+- ~close~: replaces the close button; receives ~{ close }~.
+- ~reopen~: replaces the content of the reopen handle.
+
+** Other exports
+
+- ~createDrawerGroup(initial?)~: one-open-at-most group shared by panels.
+- ~usePanelViewport()~: returns the shared reactive ~isDesktopWide~ flag.
+- ~usePanelResize(options)~: the pointer and keyboard resize logic used by
+  =SidePanel=, for custom chrome.
+
+** Theming
+
+Override any =--side-panel-*= custom property on the host, for example
+~--side-panel-background~, ~--side-panel-color~, ~--side-panel-border-color~,
+~--side-panel-z-index~, ~--side-panel-backdrop-background~,
+~--side-panel-transition-duration~, ~--side-panel-drawer-max-width~ and the
+~--side-panel-safe-*~ insets. See
+[[https://github.com/0k/vue-side-panel/blob/master/src/SidePanel.vue][src/SidePanel.vue]]
+for the full list and the defaults.
+
+* Development
+
+Run ~npm run check~ (tests, type check, build).
+
+Releases are published to npm with the =pkg= release workflow from a tagged
+commit: the version comes from the tag and ~README.md~ is generated from
+~README.org~.
+
+* License
+
+MIT, see ~LICENSE~.

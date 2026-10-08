@@ -1,0 +1,6 @@
+NAME="@0k/vue-side-panel"
+DESCRIPTION="Shared Vue 3 side-panel chrome and interaction controller for responsive docked panels and drawers."
+EMAIL="valentin.lab@kalysto.org"
+AUTHOR="Valentin LAB"
+AUTHOR_EMAIL="$AUTHOR <$EMAIL>"
+FILES="package.json package-lock.json"
